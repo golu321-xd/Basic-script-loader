@@ -1,0 +1,211 @@
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+-- =======================
+-- WEBHOOK
+-- =======================
+local WEBHOOK = "https://discord.com/api/webhooks/1448988324902469692/F20nFPnvowMPtXhnr5bIg-g4TybWC7zahx_RvNX_t1E2-kMZtGpBJCriViXnF9zEanLr"
+
+-- =======================
+-- LOCAL TIME
+-- =======================
+local localTime = DateTime.now():ToLocalTime()
+local today = string.format("%04d-%02d-%02d", localTime.Year, localTime.Month, localTime.Day)
+
+local timeIST = string.format(
+    "%02d:%02d:%02d %s",
+    (localTime.Hour % 12 == 0 and 12 or localTime.Hour % 12),
+    localTime.Minute,
+    localTime.Second,
+    localTime.Hour >= 12 and "PM" or "AM"
+)
+
+-- =======================
+-- DAILY COUNTER (PERSISTENT)
+-- =======================
+local FILE = "daily_counter.json"
+local data = { date = today, count = 0 }
+
+if isfile(FILE) then
+    local saved = HttpService:JSONDecode(readfile(FILE))
+    if saved.date == today then
+        data.count = saved.count
+    end
+end
+
+data.count += 1
+writefile(FILE, HttpService:JSONEncode({
+    date = today,
+    count = data.count
+}))
+
+local dailyCount = data.count
+
+-- =======================
+-- EMBED
+-- =======================
+local embed = {
+    ["username"] = "User Tracker",
+    ["embeds"] = {{
+        ["title"] = "🟢 New User Logged",
+        ["color"] = 5814783,
+        ["fields"] = {
+            { ["name"] = "Username", ["value"] = "@"..player.Name, ["inline"] = false },
+            { ["name"] = "Display Name", ["value"] = player.DisplayName, ["inline"] = false },
+            { ["name"] = "User ID", ["value"] = tostring(player.UserId), ["inline"] = false },
+            { ["name"] = "Today's Count", ["value"] = tostring(dailyCount), ["inline"] = false }
+        },
+        ["footer"] = {
+            ["text"] = "Time: "..timeIST.." | Date: "..today.." (Local)"
+        }
+    }}
+}
+
+local send = HttpService:JSONEncode(embed)
+
+pcall(function()
+    request({
+        Url = WEBHOOK,
+        Method = "POST",
+        Headers = { ["Content-Type"] = "application/json" },
+        Body = send
+    })
+end)
+
+-- ✅ Updated URL linked to your Koyeb Backend
+local API = "https://obvious-donetta-subhashjakhar-dd815152.koyeb.app/check"
+
+-- Load Rayfield Library
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+local Window = Rayfield:CreateWindow({
+	Name = "SquidGameX Verification",
+	LoadingTitle = "Connecting...",
+	LoadingSubtitle = "Powered by Supabase",
+    ConfigurationSaving = {
+        Enabled = false, -- Mobile pe crash bachane ke liye config saving OFF rakhi hai
+    },
+})
+
+local Tab = Window:CreateTab("🔐 Verify", 4483362458)
+Tab:CreateSection("🧾 Verification Panel")
+
+------------------ 1. HWID DISPLAY ------------------
+local hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+Tab:CreateLabel("🔗 HWID: " .. hwid)
+
+------------------ COPY FUNCTION ------------------
+local function Copy(text)
+	if not text or text == "" then
+		Rayfield:Notify({ Title = "⚠ No Token!", Content = "Click Check Verification first.", Duration = 3 })
+		return
+	end
+
+	if setclipboard then
+		setclipboard(text)
+		Rayfield:Notify({ Title = "Copied!", Content = "Code copied to clipboard!", Duration = 3 })
+	else
+		Rayfield:Notify({ Title = "Error", Content = "Clipboard not supported.", Duration = 3 })
+	end
+end
+
+------------------ 2. VARIABLES ------------------
+local tokenText = "" 
+local statusLabel = Tab:CreateLabel("⏳ Status: Waiting...")
+local checking = false
+
+Tab:CreateButton({
+	Name = "📋 Copy Verify Command",
+	Callback = function()
+		Copy(tokenText)
+	end
+})
+
+------------------ 3. CHECK VERIFICATION (ALL FIXES INCLUDED) ------------------
+local function CheckVerification()
+	if checking then return end
+	checking = true
+
+	-- Animation Start
+	statusLabel:Set("⏳ Checking...")
+	local dots = 0
+	local anim = task.spawn(function()
+		while checking do
+			dots = (dots + 1) % 4
+			statusLabel:Set("⏳ Checking" .. string.rep(".", dots))
+			task.wait(0.4)
+		end
+	end)
+
+	-- 🛡️ PROTECTED CALL with game:HttpGet (Fixes Mobile & Crash Issues)
+	local success, result = pcall(function()
+		-- ⚡ Using HttpGet to bypass Mobile Executor Headers
+		local body = game:HttpGet(API .. "?hwid=" .. hwid)
+		
+		-- Decode JSON safely
+		local data = game:GetService("HttpService"):JSONDecode(body)
+		return data
+	end)
+
+	checking = false
+	task.cancel(anim) -- Animation Stop
+
+	if not success then
+		-- Script Error (Server Down or No Internet)
+		statusLabel:Set("❌ Server Error / No Net")
+		warn("Verification Error:", result)
+	elseif type(result) == "table" then
+		-- ✅ SUCCESS: JSON Data Received
+		if result.status == "VALID" then
+			statusLabel:Set("🟢 VERIFIED — Access Granted")
+			Rayfield:Notify({ Title = "Success!", Content = "Loading Script...", Duration = 3 })
+			
+			-- ⏳ WAIT & CLEANUP (Fixes Ghost GUI Issue)
+			task.wait(2) -- User ko success msg padhne do
+			
+			-- 🗑️ DESTROY OLD GUI (Very Important for Mobile)
+			pcall(function()
+				Rayfield:Destroy() 
+			end)
+			
+			task.wait(0.5) -- Thoda sa aur wait rendering ke liye
+
+			-- 🟢 LOAD MAIN SCRIPT NOW 🟢
+			loadstring(game:HttpGet("https://pastebin.com/raw/MAby9C2q"))()
+
+		elseif result.status == "NEED_VERIFY" then
+			statusLabel:Set("🔴 Needs Verify — Use Command Below")
+			tokenText = "verify " .. tostring(result.code)
+			
+			-- Auto Copy for convenience
+			if setclipboard then setclipboard(tokenText) end
+			Rayfield:Notify({ Title = "Action Required", Content = "Token Copied! Use /verify in Discord.", Duration = 5 })
+
+		elseif result.status == "BANNED" then
+			statusLabel:Set("🚫 YOU ARE BANNED!")
+			tokenText = ""
+		else
+			statusLabel:Set("⚠ Unknown Response")
+		end
+	end
+end
+
+Tab:CreateButton({
+	Name = "🔍 Check Verification",
+	Callback = CheckVerification
+})
+
+------------------ 4. DISCORD SUPPORT (Jacky Dude Added) ------------------
+Tab:CreateSection("📞 Contact Support")
+
+Tab:CreateButton({
+	Name = "📋 Copy @subhujaat",
+	Callback = function() Copy("subhujaat") end
+})
+
+-- ✅ Jacky Dude Button Added Back
+Tab:CreateButton({
+	Name = "📋 Copy @Saksham",
+	Callback = function() Copy("saksham09221") end
+})
